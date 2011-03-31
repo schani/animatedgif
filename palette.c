@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 #include "rwimg/readimage.h"
 
@@ -80,12 +81,45 @@ build_octree (unsigned char *pixels,
 	return tree;
 }
 
+static bool
+gather_collapse_candidates (octree_t *tree, int *num, octree_t **arr)
+{
+	int i;
+	bool is_leaf = true;
+	bool have_nonleaf_children = false;
+
+	assert (tree != NULL);
+
+	for (i = 0; i < 8; ++i) {
+		octree_t *c = tree->children [i];
+		if (c != NULL) {
+			is_leaf = false;
+			if (!gather_collapse_candidates (c, num, arr))
+				have_nonleaf_children = true;
+		}
+	}
+
+	if (!is_leaf && !have_nonleaf_children) {
+		if (arr != NULL)
+			arr [*num] = tree;
+		++*num;
+	}
+
+	return is_leaf;
+}
+
 int
 main (void)
 {
 	int width, height;
 	unsigned char *data = read_image ("in.jpg", &width, &height);
 	octree_t *tree = build_octree (data, height, width * 3, width, 3, 6);
-	printf ("%u\n", tree->count);
+	int num_candidates = 0;
+	octree_t **candidates;
+	gather_collapse_candidates (tree, &num_candidates, NULL);
+	candidates = malloc (sizeof (octree_t*) * num_candidates);
+	num_candidates = 0;
+	gather_collapse_candidates (tree, &num_candidates, candidates);
+	printf ("%u - %d\n", tree->count, num_candidates);
 	return 0;
 }
