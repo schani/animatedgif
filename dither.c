@@ -46,9 +46,6 @@ sierra_lite (unsigned char *pixels,
 			int eb = g - palette [index].blue;
 
 			*o++ = index;
-			p [0] = palette [index].red;
-			p [1] = palette [index].green;
-			p [2] = palette [index].blue;
 
 			p += col_stride;
 
