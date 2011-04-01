@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <gif_lib.h>
 
@@ -16,6 +17,7 @@ write_gif (const char *filename, int width, int height,
 	GifFileType *file;
 	bool success = true;
 	int i, result;
+	static char *loop_extension_name = "NETSCAPE2.0";
 
 	assert (num_colors <= 256);
 
@@ -40,10 +42,24 @@ write_gif (const char *filename, int width, int height,
 	result = EGifPutScreenDesc (file, width, height, num_colors, 0, color_map);
 	assert (result == GIF_OK);
 
+	result = EGifPutExtensionFirst (file, APPLICATION_EXT_FUNC_CODE, strlen (loop_extension_name), loop_extension_name);
+	assert (result == GIF_OK);
+
+	result = EGifPutExtensionLast (file, APPLICATION_EXT_FUNC_CODE, 3, "\x01\xff\xff");
+	assert (result == GIF_OK);
+
 	result = EGifPutImageDesc (file, 0, 0, width, height, false, color_map);
 	assert (result == GIF_OK);
 
 	for (i = 0; i < height; ++i) {
+		result = EGifPutLine (file, pixels + width * i, width);
+		assert (result == GIF_OK);
+	}
+
+	result = EGifPutImageDesc (file, 0, 0, width, height, false, color_map);
+	assert (result == GIF_OK);
+
+	for (i = height - 1; i >= 0; --i) {
 		result = EGifPutLine (file, pixels + width * i, width);
 		assert (result == GIF_OK);
 	}
