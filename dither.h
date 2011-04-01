@@ -6,7 +6,7 @@
 void quantize (unsigned char *pixels,
 	       int num_rows, int row_stride,
 	       int num_cols, int col_stride,
-	       color_t *palette, int num_colors,
+	       octree_t *tree,
 	       unsigned char *output);
 
 #endif

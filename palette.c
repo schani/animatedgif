@@ -9,23 +9,13 @@
 
 #include "palette.h"
 
-typedef struct octree octree_t;
-
-struct octree {
-	unsigned int count;
-	unsigned int red;
-	unsigned int green;
-	unsigned int blue;
-	octree_t *parent;
-	octree_t *children [8];
-};
-
 static octree_t*
 octree_alloc_node (octree_t *parent)
 {
 	octree_t *node = (octree_t*)malloc (sizeof (octree_t));
 	memset (node, 0, sizeof (octree_t));
 	node->parent = parent;
+	node->index = -1;
 	return node;
 }
 
@@ -41,7 +31,7 @@ octree_insert (octree_t *tree, unsigned char r, unsigned char g, unsigned char b
 
 	n = tree;
 	for (i = 0; i < num_levels; ++i) {
-		int i = ((r & mask) ? 1 : 0) | ((g & mask) ? 2 : 0) | ((b & mask) ? 4 : 0);
+		int i = OCTREE_CHILD_INDEX (r, g, b, mask);
 		assert (i >= 0 && i < 8);
 		if (n->children [i] == NULL)
 			n->children [i] = octree_alloc_node (n);
@@ -162,6 +152,24 @@ collapse_node (octree_t *node)
 	return node;
 }
 
+static void
+remove_leaves (octree_t *tree)
+{
+	int i;
+	assert (tree->index >= 0);
+	for (i = 0; i < 8; ++i) {
+		octree_t *node = tree->children [i];
+		if (node == NULL)
+			continue;
+		if (node->index < 0 && is_leaf (node)) {
+			free (node);
+			tree->children [i] = NULL;
+		} else {
+			remove_leaves (node);
+		}
+	}
+}
+
 static int
 reduce_octree (octree_t *tree, int max, color_t *colors)
 {
@@ -194,12 +202,22 @@ reduce_octree (octree_t *tree, int max, color_t *colors)
 
 	for (i = 0; first + i < num_candidates; ++i) {
 		octree_t *node = candidates [first + i];
+		octree_t *parent;
 		collapse_node (node);
-		colors [i].red = node->red / node->count;
-		colors [i].green = node->green / node->count;
-		colors [i].blue = node->blue / node->count;
+		colors [i].red = (node->red /= node->count);
+		colors [i].green = (node->green /= node->count);
+		colors [i].blue = (node->blue /= node->count);
+		node->index = i;
+		for (parent = node->parent; parent != NULL; parent = parent->parent) {
+			parent->red = node->red;
+			parent->green = node->green;
+			parent->blue = node->blue;
+			parent->index = node->index;
+		}
 		printf ("%3d  %3d  %3d   %d\n", colors [i].red, colors [i].green, colors [i].blue, node->count);
 	}
+
+	remove_leaves (tree);
 
 	return i;
 }
@@ -216,7 +234,7 @@ main (int argc, char *argv [])
 	color_t colors [num_colors];
 	int num = reduce_octree (tree, num_colors, colors);
 	unsigned char *dithered = malloc (width * height);
-	quantize (data, height, width * 3, width, 3, colors, num, dithered);
+	quantize (data, height, width * 3, width, 3, tree, dithered);
 	write_image ("out.png", width, height, data, 3, width * 3, IMAGE_FORMAT_AUTO);
 	return 0;
 }
