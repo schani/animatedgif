@@ -234,7 +234,7 @@ main (int argc, char *argv [])
 	color_t colors [num_colors];
 	int num = reduce_octree (tree, num_colors, colors);
 	unsigned char *dithered = malloc (width * height);
-	quantize (data, height, width * 3, width, 3, tree, dithered);
+	sierra_lite (data, height, width * 3, width, 3, tree, dithered);
 	write_image ("out.png", width, height, data, 3, width * 3, IMAGE_FORMAT_AUTO);
 	return 0;
 }
