@@ -2,57 +2,44 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "palette.h"
 #include "dither.h"
 
-static octree_t*
-nearest_color (unsigned char red, unsigned char green, unsigned char blue, octree_t *tree)
-{
-	unsigned char mask = 0x80;
-	do {
-		int index = OCTREE_CHILD_INDEX (red, green, blue, mask);
-		octree_t *child = tree->children [index];
-		if (child == NULL)
-			break;
-		tree = child;
-		mask >>= 1;
-	} while (mask != 0);
-	assert (tree->index >= 0);
-	return tree;
-}
-
-void
-quantize (unsigned char *pixels,
-	  int num_rows, int row_stride,
-	  int num_cols, int col_stride,
-	  octree_t *tree,
-	  unsigned char *output)
-{
-	int row, col;
-	unsigned char *o = output;
-
-	for (row = 0; row < num_rows; ++row) {
-		unsigned char *p = pixels + row * row_stride;
-
-		for (col = 0; col < num_cols; ++col) {
-			octree_t *node = nearest_color (p [0], p [1], p [2], tree);
-			*o++ = node->index;
-			p [0] = node->red;
-			p [1] = node->green;
-			p [2] = node->blue;
-			p += col_stride;
-		}
-	}
-}
-
 #define CLAMP(x)	((x)<0 ? 0 : ((x) > 255 ? 255 : (x)))
+
+static color_t*
+make_cube_palette (int red_bits, int green_bits, int blue_bits, int *num_colors)
+{
+	int num, i;
+	color_t *colors;
+
+	assert (red_bits + green_bits + blue_bits <= 8);
+
+	*num_colors = num = 1 << (red_bits + green_bits + blue_bits);
+	colors = malloc (sizeof (color_t) * num);
+
+	for (i = 0; i < num; ++i) {
+		int r = i & ((1 << red_bits) - 1);
+		int g = (i >> red_bits) & ((1 << green_bits) - 1);
+		int b = (i >> (red_bits + green_bits)) & ((1 << blue_bits) - 1);
+
+		colors [i].red = 255 * r / ((1 << red_bits) - 1);
+		colors [i].green = 255 * g / ((1 << green_bits) - 1);
+		colors [i].blue = 255 * b / ((1 << blue_bits) - 1);
+	}
+
+	return colors;
+}
 
 void
 sierra_lite (unsigned char *pixels,
 	     int num_rows, int row_stride,
 	     int num_cols, int col_stride,
-	     octree_t *tree,
+	     int red_bits, int green_bits, int blue_bits,
 	     unsigned char *output)
 {
+	int num_colors;
+	color_t *palette = make_cube_palette (red_bits, green_bits, blue_bits, &num_colors);
 	int row, col;
 	int errors1 [(num_cols + 2) * 3], errors2 [(num_cols + 2) * 3];
 	int *current_errors = errors1 + 3;
@@ -69,15 +56,23 @@ sierra_lite (unsigned char *pixels,
 			int r = p [0] + current_errors [col * 3 + 0];
 			int g = p [1] + current_errors [col * 3 + 1];
 			int b = p [2] + current_errors [col * 3 + 2];
-			octree_t *node = nearest_color (CLAMP (r), CLAMP(g), CLAMP (b), tree);
-			int er = r - node->red;
-			int eg = g - node->green;
-			int eb = g - node->blue;
+			unsigned char cr = CLAMP (r);
+			unsigned char cg = CLAMP (g);
+			unsigned char cb = CLAMP (b);
+			int index = (cr >> (8 - red_bits)) |
+				((cg >> (8 - green_bits)) << red_bits) |
+				((cb >> (8 - blue_bits)) << (red_bits + green_bits));
 
-			*o++ = node->index;
-			p [0] = node->red;
-			p [1] = node->green;
-			p [2] = node->blue;
+			assert (index >= 0 && index < num_colors);
+
+			int er = r - palette [index].red;
+			int eg = g - palette [index].green;
+			int eb = g - palette [index].blue;
+
+			*o++ = index;
+			p [0] = palette [index].red;
+			p [1] = palette [index].green;
+			p [2] = palette [index].blue;
 
 			p += col_stride;
 
@@ -114,4 +109,6 @@ sierra_lite (unsigned char *pixels,
 
 		memset (next_errors - 3, 0, sizeof (errors1));
 	}
+
+	free (palette);
 }
