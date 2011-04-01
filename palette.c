@@ -206,16 +206,15 @@ reduce_octree (octree_t *tree, int max, color_t *colors)
 
 #include "dither.h"
 
-#define NUM_COLORS	16
-
 int
-main (void)
+main (int argc, char *argv [])
 {
 	int width, height;
-	unsigned char *data = read_image ("in.jpg", &width, &height);
+	unsigned char *data = read_image (argv [1], &width, &height);
 	octree_t *tree = build_octree (data, height, width * 3, width, 3, 6);
-	color_t colors [NUM_COLORS];
-	int num = reduce_octree (tree, NUM_COLORS, colors);
+	int num_colors = atoi (argv [2]);
+	color_t colors [num_colors];
+	int num = reduce_octree (tree, num_colors, colors);
 	unsigned char *dithered = malloc (width * height);
 	quantize (data, height, width * 3, width, 3, colors, num, dithered);
 	write_image ("out.png", width, height, data, 3, width * 3, IMAGE_FORMAT_AUTO);
