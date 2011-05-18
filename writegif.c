@@ -92,6 +92,10 @@ gif_write_frame (gif_write_state_t *state, unsigned char *rgb_data, int row_stri
 	sierra_lite (rgb_data, state->height, row_stride, state->width, pixel_stride,
 		     state->red_bits, state->green_bits, state->blue_bits, dithered);
 
+	result = EGifPutExtension (state->file, GRAPHICS_EXT_FUNC_CODE, 4, "\x04\x05\x00\x00");
+	if (result != GIF_OK)
+		return false;
+
 	result = EGifPutImageDesc (state->file, 0, 0, state->width, state->height, false, NULL);
 	if (result != GIF_OK)
 		return false;
